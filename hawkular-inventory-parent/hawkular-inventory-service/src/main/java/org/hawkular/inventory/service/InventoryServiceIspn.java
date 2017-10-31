@@ -41,6 +41,7 @@ import org.hawkular.commons.json.JsonUtil;
 import org.hawkular.inventory.api.InventoryService;
 import org.hawkular.inventory.api.ResourceFilter;
 import org.hawkular.inventory.api.model.InventoryHealth;
+import org.hawkular.inventory.api.model.MetricsEndpoint;
 import org.hawkular.inventory.api.model.RawResource;
 import org.hawkular.inventory.api.model.Resource;
 import org.hawkular.inventory.api.model.ResourceNode;
@@ -407,6 +408,13 @@ public class InventoryServiceIspn implements InventoryService {
         }
     }
 
+    @Override
+    public boolean registerMetricsEndpoint(MetricsEndpoint metricsEndpoint) {
+        String feedId = metricsEndpoint.getFeedId();
+        String hostPort = String.format("%s:%d", metricsEndpoint.getHost(), metricsEndpoint.getPort());
+        return writePrometheusScrapeConfigurationFile(feedId, hostPort);
+    }
+
     private void checkAddingAgent(RawResource rawResource) {
         if (scrapeConfig.filter(rawResource)) {
             writeMetricsEndpoint(rawResource);
@@ -422,21 +430,33 @@ public class InventoryServiceIspn implements InventoryService {
             return;
         }
 
+        writePrometheusScrapeConfigurationFile(feedId, metricsEndpoint);
+    }
+
+    private boolean writePrometheusScrapeConfigurationFile(String feedId, String metricsEndpoint) {
         if (feedId.contains("..")) {
             throw new IllegalArgumentException("Cannot write metrics endpoint file with '..' in path: " + feedId);
         }
 
         // Prometheus file format. See: https://prometheus.io/docs/operating/configuration/#<file_sd_config>
+        // metricsEndpoint is "host:port" e.g. "localhost:9779"
         String content = String.format("[ { \"targets\": [ \"%s\" ], \"labels\": { \"feed_id\": \"%s\" } } ]",
                 metricsEndpoint,
                 feedId);
+
+        boolean success;
+
         try {
             File newScrapeConfig = new File(scrapeLocation, feedId + ".json");
             Files.write(newScrapeConfig.toPath(), content.getBytes(StandardCharsets.UTF_8));
             log.infoRegisteredMetricsEndpoint(feedId, metricsEndpoint, newScrapeConfig.toString());
+            success = true;
         } catch (Exception e) {
             log.errorCannotRegisterMetricsEndpoint(feedId, metricsEndpoint, e);
+            success = false;
         }
+
+        return success;
     }
 
     private void checkRemovingAgent(String id) {

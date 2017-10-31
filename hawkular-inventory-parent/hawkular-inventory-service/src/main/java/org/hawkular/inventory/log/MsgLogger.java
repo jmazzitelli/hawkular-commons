@@ -96,4 +96,8 @@ public interface MsgLogger {
     @LogMessage(level = Level.ERROR)
     @Message(id = 100016, value = "Cannot unregister feed [%s] metrics endpoint")
     void errorCannotUnregisterMetricsEndpoint(String feedId);
+
+    @LogMessage(level = Level.ERROR)
+    @Message(id = 100017, value = "The value of [%s] is null")
+    void errorNullValue(String variableName);
 }
